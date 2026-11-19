@@ -36,7 +36,7 @@ def main():
             print(f"Source failed {src}: {e}")
 
     made = []
-    for stream in candidates[:6]:
+    for stream in candidates[:int(os.getenv("MAX_TRIES", "2"))]:
         print(f"Clipping: {stream['title']} ({stream['url']})")
         try:
             made = clipper.process_stream(stream, QUEUE, keep=per_day, clip_len=clip_len)
