@@ -27,6 +27,8 @@ def sh(cmd):
                  "--sleep-requests", "1.5", "--sleep-interval", "5", "--max-sleep-interval", "15"]
         if (ROOT / "cookies.txt").exists():
             extra += ["--cookies", str(ROOT / "cookies.txt")]
+        if os.getenv("YT_PROXY"):
+            extra += ["--proxy", os.getenv("YT_PROXY").strip()]
         cmd = cmd[:1] + extra + cmd[1:]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -48,19 +50,29 @@ def latest_streams(channel_url, limit=3):
 
 
 def download(url, vid_id, log=print):
+    """Phase 1: grab only the AUDIO (+ chat replay) to find moments. Small and fast."""
     d = WORK / vid_id
     d.mkdir(parents=True, exist_ok=True)
-    video = d / "source.mp4"
-    if not video.exists():
-        log("Downloading stream (this can take a while)…")
-        sh(["yt-dlp", "-f", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b",
-            "--merge-output-format", "mp4", "-o", str(video), url])
+    audio = next(iter(d.glob("audio.*")), None)
+    if audio is None:
+        log("Downloading stream audio (to find the best moments)…")
+        sh(["yt-dlp", "-f", "ba[abr<=96]/ba/b", "-o", str(d / "audio.%(ext)s"), url])
+        audio = next(iter(d.glob("audio.*")))
     try:  # YouTube chat replay
         sh(["yt-dlp", "--skip-download", "--write-subs", "--sub-langs", "live_chat",
             "-o", str(d / "chat"), url])
     except Exception:
         pass
-    return video
+    return audio
+
+
+def download_section(url, start, end, out, log=print):
+    """Phase 2: download ONLY the chosen seconds of video."""
+    log(f"Downloading only the clip ({start}s-{end}s)…")
+    sh(["yt-dlp", "-f", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b",
+        "--download-sections", f"*{start}-{end}", "--force-keyframes-at-cuts",
+        "--merge-output-format", "mp4", "-o", str(out), url])
+    return out
 
 
 # ---------------------------------------------------------------- signals
@@ -162,12 +174,12 @@ def write_ass(words, path):
     path.write_text(head + "\n".join(lines), encoding="utf-8")
 
 
-def render(video, start, end, words, out):
+def render(clip_src, words, out):
     ass = out.with_suffix(".ass")
     write_ass(words, ass)
     vf = ("crop=ih*9/16:ih,scale=1080:1920,"  # full-screen centre crop
           f"subtitles='{ass.as_posix()}'")
-    sh(["ffmpeg", "-y", "-ss", str(start), "-to", str(end), "-i", str(video), "-vf", vf,
+    sh(["ffmpeg", "-y", "-i", str(clip_src), "-vf", vf,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-b:a", "160k",
         "-movflags", "+faststart", str(out)])
     ass.unlink(missing_ok=True)
@@ -200,8 +212,9 @@ def process_stream(stream, out_dir, keep=3, clip_len=40, log=print):
     for n, (c, title, caption) in enumerate(chosen, 1):
         name = f"{stream['id']}_{c['start']}"
         out = out_dir / f"{name}.mp4"
+        src = download_section(stream["url"], c["start"], c["end"], WORK / stream["id"] / f"raw_{c['start']}.mp4", log)
         log(f"Editing clip {n}/{len(chosen)} ({c['start']}s)…")
-        render(video, c["start"], c["end"], c["words"], out)
+        render(src, c["words"], out)
         out.with_suffix(".txt").write_text(f"{title}\n{caption}", encoding="utf-8")
         made.append(out)
     return made
