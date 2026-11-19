@@ -28,7 +28,9 @@ def main():
     for src in sources:
         try:
             for s in clipper.latest_streams(src, limit=3):
-                if s["id"] not in done and s["id"] not in {c["id"] for c in candidates}:
+                is_gta = any(k in s["title"].lower() for k in ("gta", "vice city", "grand theft"))
+                single = "/@" not in src and "/channel/" not in src
+                if (is_gta or single) and s["id"] not in done and s["id"] not in {c["id"] for c in candidates}:
                     candidates.append(s)
         except Exception as e:
             print(f"Source failed {src}: {e}")
