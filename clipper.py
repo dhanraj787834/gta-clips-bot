@@ -23,7 +23,7 @@ HYPE = ["no way", "bro", "what", "oh my god", "omg", "let's go", "lets go", "ins
 
 def sh(cmd):
     if cmd and cmd[0] == "yt-dlp":
-        extra = ["--retries", "3", "--extractor-args", "youtube:player_client=default,tv,mweb"]
+        extra = ["--retries", "3", "--remote-components", "ejs:github"]
         if (ROOT / "cookies.txt").exists():
             extra += ["--cookies", str(ROOT / "cookies.txt")]
         cmd = cmd[:1] + extra + cmd[1:]
@@ -52,7 +52,7 @@ def download(url, vid_id, log=print):
     video = d / "source.mp4"
     if not video.exists():
         log("Downloading stream (this can take a while)…")
-        sh(["yt-dlp", "-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080]",
+        sh(["yt-dlp", "-f", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b",
             "--merge-output-format", "mp4", "-o", str(video), url])
     try:  # YouTube chat replay
         sh(["yt-dlp", "--skip-download", "--write-subs", "--sub-langs", "live_chat",
