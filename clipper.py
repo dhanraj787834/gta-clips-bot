@@ -30,10 +30,12 @@ def sh(cmd):
 # ---------------------------------------------------------------- sources
 def latest_streams(channel_url, limit=3):
     url = channel_url.rstrip("/")
-    if "youtube.com" in url and not url.endswith("/streams"):
+    if ("/@" in url or "/channel/" in url) and not url.endswith("/streams"):
         url += "/streams"
     out = sh(["yt-dlp", "--flat-playlist", "--playlist-end", str(limit), "-J", url]).stdout
     data = json.loads(out)
+    if "entries" not in data:  # a single video / VOD link
+        return [{"id": data["id"], "title": data.get("title", ""), "url": data.get("webpage_url") or url}]
     return [{"id": e["id"], "title": e.get("title", ""), "url": e.get("url") or e.get("webpage_url")}
             for e in data.get("entries", []) if e]
 
