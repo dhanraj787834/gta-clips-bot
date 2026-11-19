@@ -30,12 +30,6 @@ LOG_CSV = ROOT / "posted_log.csv"
 IG_TOKEN_FILE = ROOT / "ig_token.json"
 VIDEO_EXT = {".mp4", ".mov"}
 IG_API = "https://graph.instagram.com/v22.0"
-FB_API = "https://graph.facebook.com/v22.0"
-
-
-def ig_api(token):
-    # Instagram-login tokens (IGAA...) use graph.instagram.com; Facebook/system-user tokens use graph.facebook.com
-    return IG_API if token.startswith("IG") else FB_API
 
 logging.basicConfig(
     level=logging.INFO,
@@ -131,7 +125,7 @@ def ig_token():
     if not token:
         raise RuntimeError("IG_ACCESS_TOKEN missing in .env")
     refreshed_at = saved.get("refreshed_at", 0)
-    if token.startswith("IG") and time.time() - refreshed_at > 50 * 86400:
+    if time.time() - refreshed_at > 50 * 86400:
         r = requests.get(f"https://graph.instagram.com/refresh_access_token",
                          params={"grant_type": "ig_refresh_token", "access_token": token}, timeout=30)
         if r.ok:
@@ -165,34 +159,41 @@ def delete_hosted(public_id):
 
 
 def instagram_upload(clip: Path, caption: str) -> str:
+    """Upload the video file straight to Instagram (resumable upload, no hosting needed)."""
     token = ig_token()
     user_id = os.getenv("IG_USER_ID")
-    url, public_id = host_temporarily(clip)
-    try:
-        r = requests.post(f"{ig_api(token)}/{user_id}/media", data={
-            "media_type": "REELS", "video_url": url, "caption": caption,
-            "share_to_feed": "true", "access_token": token}, timeout=60)
-        r.raise_for_status()
-        container = r.json()["id"]
+    api = ig_api(token)
+    r = requests.post(f"{api}/{user_id}/media", data={
+        "media_type": "REELS", "upload_type": "resumable", "caption": caption,
+        "share_to_feed": "true", "access_token": token}, timeout=60)
+    if not r.ok:
+        raise RuntimeError(f"Instagram container failed: {r.text}")
+    j = r.json()
+    container = j["id"]
+    upload_uri = j.get("uri") or f"https://rupload.facebook.com/ig-api-upload/v22.0/{container}"
+    data = clip.read_bytes()
+    up = requests.post(upload_uri, data=data, timeout=600, headers={
+        "Authorization": f"OAuth {token}", "offset": "0", "file_size": str(len(data))})
+    if not up.ok:
+        raise RuntimeError(f"Instagram upload failed: {up.text}")
 
-        for _ in range(60):  # wait up to ~10 min for Instagram to process
-            s = requests.get(f"{ig_api(token)}/{container}",
-                             params={"fields": "status_code,status", "access_token": token}, timeout=30).json()
-            code = s.get("status_code")
-            if code == "FINISHED":
-                break
-            if code in {"ERROR", "EXPIRED"}:
-                raise RuntimeError(f"Instagram processing failed: {s}")
-            time.sleep(10)
-        else:
-            raise RuntimeError("Instagram processing timed out")
+    for _ in range(60):  # wait up to ~10 min for Instagram to process
+        st = requests.get(f"{api}/{container}",
+                          params={"fields": "status_code,status", "access_token": token}, timeout=30).json()
+        code = st.get("status_code")
+        if code == "FINISHED":
+            break
+        if code in {"ERROR", "EXPIRED"}:
+            raise RuntimeError(f"Instagram processing failed: {st}")
+        time.sleep(10)
+    else:
+        raise RuntimeError("Instagram processing timed out")
 
-        r = requests.post(f"{ig_api(token)}/{user_id}/media_publish",
-                          data={"creation_id": container, "access_token": token}, timeout=60)
-        r.raise_for_status()
-        return r.json()["id"]
-    finally:
-        delete_hosted(public_id)
+    r = requests.post(f"{api}/{user_id}/media_publish",
+                      data={"creation_id": container, "access_token": token}, timeout=60)
+    if not r.ok:
+        raise RuntimeError(f"Instagram publish failed: {r.text}")
+    return r.json()["id"]
 
 
 # ---------------------------------------------------------------- main
