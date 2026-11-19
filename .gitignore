@@ -1,0 +1,11 @@
+.env
+client_secret.json
+yt_token.json
+ig_token.json
+state.json
+*.log
+queue/*
+posted/*
+cookies.txt
+work/
+review/*
