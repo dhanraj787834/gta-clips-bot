@@ -30,6 +30,12 @@ LOG_CSV = ROOT / "posted_log.csv"
 IG_TOKEN_FILE = ROOT / "ig_token.json"
 VIDEO_EXT = {".mp4", ".mov"}
 IG_API = "https://graph.instagram.com/v22.0"
+FB_API = "https://graph.facebook.com/v22.0"
+
+
+def ig_api(token):
+    # Instagram-login tokens (IGAA...) use graph.instagram.com; Facebook/system-user tokens use graph.facebook.com
+    return IG_API if token.startswith("IG") else FB_API
 
 logging.basicConfig(
     level=logging.INFO,
@@ -125,7 +131,7 @@ def ig_token():
     if not token:
         raise RuntimeError("IG_ACCESS_TOKEN missing in .env")
     refreshed_at = saved.get("refreshed_at", 0)
-    if time.time() - refreshed_at > 50 * 86400:
+    if token.startswith("IG") and time.time() - refreshed_at > 50 * 86400:
         r = requests.get(f"https://graph.instagram.com/refresh_access_token",
                          params={"grant_type": "ig_refresh_token", "access_token": token}, timeout=30)
         if r.ok:
@@ -163,14 +169,14 @@ def instagram_upload(clip: Path, caption: str) -> str:
     user_id = os.getenv("IG_USER_ID")
     url, public_id = host_temporarily(clip)
     try:
-        r = requests.post(f"{IG_API}/{user_id}/media", data={
+        r = requests.post(f"{ig_api(token)}/{user_id}/media", data={
             "media_type": "REELS", "video_url": url, "caption": caption,
             "share_to_feed": "true", "access_token": token}, timeout=60)
         r.raise_for_status()
         container = r.json()["id"]
 
         for _ in range(60):  # wait up to ~10 min for Instagram to process
-            s = requests.get(f"{IG_API}/{container}",
+            s = requests.get(f"{ig_api(token)}/{container}",
                              params={"fields": "status_code,status", "access_token": token}, timeout=30).json()
             code = s.get("status_code")
             if code == "FINISHED":
@@ -181,7 +187,7 @@ def instagram_upload(clip: Path, caption: str) -> str:
         else:
             raise RuntimeError("Instagram processing timed out")
 
-        r = requests.post(f"{IG_API}/{user_id}/media_publish",
+        r = requests.post(f"{ig_api(token)}/{user_id}/media_publish",
                           data={"creation_id": container, "access_token": token}, timeout=60)
         r.raise_for_status()
         return r.json()["id"]
