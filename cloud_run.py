@@ -17,11 +17,22 @@ DONE = ROOT / "processed_streams.json"
 QUEUE = ROOT / "queue"
 
 
+def post_queue(n):
+    os.environ["POSTS_PER_RUN"] = str(n)
+    return subprocess.run([sys.executable, "autopost.py"], cwd=ROOT).returncode
+
+
 def main():
+    per_day = int(os.getenv("POSTS_PER_DAY", "1"))
+    QUEUE.mkdir(exist_ok=True)
+    waiting = sorted(QUEUE.glob("*.mp4"))
+    if waiting:  # never lose a finished clip: post saved ones first
+        print(f"{len(waiting)} saved clip(s) waiting - posting before clipping anything new.")
+        return post_queue(per_day)
+
     done = set(json.loads(DONE.read_text())) if DONE.exists() else set()
     sources = [l.strip() for l in (ROOT / "sources.txt").read_text().splitlines()
                if l.strip() and not l.startswith("#")]
-    per_day = int(os.getenv("POSTS_PER_DAY", "2"))
     clip_len = int(os.getenv("CLIP_LEN", "40"))
 
     candidates = []
@@ -52,8 +63,7 @@ def main():
         print("No clips made today (no new streams, or all downloads were blocked).")
         return 1
 
-    os.environ["POSTS_PER_RUN"] = str(per_day)
-    return subprocess.run([sys.executable, "autopost.py"], cwd=ROOT).returncode
+    return post_queue(per_day)
 
 
 if __name__ == "__main__":
