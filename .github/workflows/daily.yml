@@ -24,10 +24,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
       - name: Install
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
           pip install -q -r requirements.txt
+          pip install -q -U "yt-dlp[default]"
       - name: YouTube cookies (optional, helps against bot checks)
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
