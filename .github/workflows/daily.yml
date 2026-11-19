@@ -2,11 +2,17 @@ name: Daily GTA clips
 
 on:
   schedule:
-    - cron: "17 12 * * *"   # 17:47 IST every day
+    - cron: "3 7 * * *"     # 12:33 PM IST
+    - cron: "17 12 * * *"   # 5:47 PM IST
+    - cron: "7 16 * * *"    # 9:37 PM IST
   workflow_dispatch: {}      # "Run workflow" button for manual runs
 
 permissions:
   contents: write
+
+concurrency:
+  group: clips-bot
+  cancel-in-progress: false
 
 jobs:
   clip-and-post:
@@ -40,7 +46,7 @@ jobs:
           ENABLE_YOUTUBE: ${{ vars.ENABLE_YOUTUBE || 'true' }}
           ENABLE_INSTAGRAM: ${{ vars.ENABLE_INSTAGRAM || 'true' }}
           YT_PRIVACY: ${{ vars.YT_PRIVACY || 'public' }}
-          POSTS_PER_DAY: ${{ vars.POSTS_PER_DAY || '2' }}
+          POSTS_PER_DAY: ${{ vars.POSTS_PER_DAY || '1' }}
           CLIP_LEN: ${{ vars.CLIP_LEN || '40' }}
           WHISPER_MODEL: base
           QUEUE_DIR: queue
