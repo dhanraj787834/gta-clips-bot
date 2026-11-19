@@ -23,7 +23,8 @@ HYPE = ["no way", "bro", "what", "oh my god", "omg", "let's go", "lets go", "ins
 
 def sh(cmd):
     if cmd and cmd[0] == "yt-dlp":
-        extra = ["--retries", "3", "--remote-components", "ejs:github"]
+        extra = ["--retries", "3", "--remote-components", "ejs:github",
+                 "--sleep-requests", "1.5", "--sleep-interval", "5", "--max-sleep-interval", "15"]
         if (ROOT / "cookies.txt").exists():
             extra += ["--cookies", str(ROOT / "cookies.txt")]
         cmd = cmd[:1] + extra + cmd[1:]
