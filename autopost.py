@@ -30,6 +30,12 @@ LOG_CSV = ROOT / "posted_log.csv"
 IG_TOKEN_FILE = ROOT / "ig_token.json"
 VIDEO_EXT = {".mp4", ".mov"}
 IG_API = "https://graph.instagram.com/v22.0"
+FB_API = "https://graph.facebook.com/v22.0"
+
+
+def ig_api(token):
+    # Instagram-login tokens (IGAA...) use graph.instagram.com; Facebook/system-user tokens use graph.facebook.com
+    return IG_API if token.startswith("IG") else FB_API
 
 logging.basicConfig(
     level=logging.INFO,
@@ -121,11 +127,11 @@ def youtube_upload(clip: Path, title: str, description: str) -> str:
 def ig_token():
     """Return a valid long-lived token, refreshing it if older than ~50 days."""
     saved = load_json(IG_TOKEN_FILE, {})
-    token = saved.get("token") or os.getenv("IG_ACCESS_TOKEN")
+    token = (saved.get("token") or os.getenv("IG_ACCESS_TOKEN") or "").strip()
     if not token:
         raise RuntimeError("IG_ACCESS_TOKEN missing in .env")
     refreshed_at = saved.get("refreshed_at", 0)
-    if time.time() - refreshed_at > 50 * 86400:
+    if token.startswith("IG") and time.time() - refreshed_at > 50 * 86400:
         r = requests.get(f"https://graph.instagram.com/refresh_access_token",
                          params={"grant_type": "ig_refresh_token", "access_token": token}, timeout=30)
         if r.ok:
