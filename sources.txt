@@ -1,1 +1,6 @@
-# One streamer channel URL per line (YouTube channel, Twitch or Kick)
+# One streamer channel URL (or a single stream/VOD link) per line
+https://youtu.be/169ZzvPxvvM
+https://www.youtube.com/@CarryisLive
+https://www.youtube.com/@SnaxGaming
+https://www.youtube.com/@IShowSpeed
+https://www.youtube.com/@DattraxGaming
