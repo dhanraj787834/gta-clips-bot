@@ -22,9 +22,15 @@ HYPE = ["no way", "bro", "what", "oh my god", "omg", "let's go", "lets go", "ins
 
 
 def sh(cmd):
-    if cmd and cmd[0] == "yt-dlp" and (ROOT / "cookies.txt").exists():
-        cmd = cmd[:1] + ["--cookies", str(ROOT / "cookies.txt")] + cmd[1:]
-    return subprocess.run(cmd, check=True, capture_output=True, text=True)
+    if cmd and cmd[0] == "yt-dlp":
+        extra = ["--retries", "3", "--extractor-args", "youtube:player_client=default,tv,mweb"]
+        if (ROOT / "cookies.txt").exists():
+            extra += ["--cookies", str(ROOT / "cookies.txt")]
+        cmd = cmd[:1] + extra + cmd[1:]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"{cmd[0]} failed: {r.stderr[-1500:]}")
+    return r
 
 
 # ---------------------------------------------------------------- sources
@@ -51,7 +57,7 @@ def download(url, vid_id, log=print):
     try:  # YouTube chat replay
         sh(["yt-dlp", "--skip-download", "--write-subs", "--sub-langs", "live_chat",
             "-o", str(d / "chat"), url])
-    except subprocess.CalledProcessError:
+    except Exception:
         pass
     return video
 
