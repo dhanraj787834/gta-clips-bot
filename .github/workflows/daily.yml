@@ -36,6 +36,14 @@ jobs:
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: if [ -n "$YT_COOKIES" ]; then printf '%s\n' "$YT_COOKIES" > cookies.txt; fi
+      - name: Restore saved (unposted) clips
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            queue/
+            state.json
+          key: clips-${{ github.run_id }}
+          restore-keys: clips-
       - name: Find moments, edit, post
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -47,6 +55,7 @@ jobs:
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          YT_PROXY: ${{ secrets.YT_PROXY }}
           ENABLE_YOUTUBE: ${{ vars.ENABLE_YOUTUBE || 'true' }}
           ENABLE_INSTAGRAM: ${{ vars.ENABLE_INSTAGRAM || 'true' }}
           YT_PRIVACY: ${{ vars.YT_PRIVACY || 'public' }}
@@ -56,6 +65,19 @@ jobs:
           QUEUE_DIR: queue
           POSTED_DIR: posted
         run: python cloud_run.py
+      - name: Prepare clip store
+        if: always()
+        run: |
+          mkdir -p queue && touch queue/.keep
+          [ -f state.json ] || echo '{}' > state.json
+      - name: Keep unposted clips for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            queue/
+            state.json
+          key: clips-${{ github.run_id }}
       - name: Save progress
         if: always()
         run: |
