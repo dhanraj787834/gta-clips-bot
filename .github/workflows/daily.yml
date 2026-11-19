@@ -5,10 +5,16 @@ on:
     - cron: "30 2 * * *"    # 8:00 AM IST
     - cron: "30 8 * * *"    # 2:00 PM IST
     - cron: "30 12 * * *"   # 6:00 PM IST
-  workflow_dispatch: {}      # "Run workflow" button for manual runs
+  workflow_dispatch:          # "Run workflow" button for manual runs
+    inputs:
+      repost_run:
+        description: "Optional: run ID whose saved clips should be posted (skips downloading)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: clips-bot
@@ -44,6 +50,20 @@ jobs:
             state.json
           key: clips-${{ github.run_id }}
           restore-keys: clips-
+      - name: Load clips from an earlier run
+        if: ${{ github.event.inputs.repost_run != '' && github.event.inputs.repost_run != null }}
+        uses: actions/download-artifact@v4
+        with:
+          name: clips
+          run-id: ${{ github.event.inputs.repost_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: old_clips
+      - name: Queue the loaded clips
+        if: ${{ github.event.inputs.repost_run != '' && github.event.inputs.repost_run != null }}
+        run: |
+          mkdir -p queue
+          find old_clips -path '*queue*' \( -name '*.mp4' -o -name '*.txt' \) -exec cp {} queue/ \;
+          ls -la queue
       - name: Find moments, edit, post
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
